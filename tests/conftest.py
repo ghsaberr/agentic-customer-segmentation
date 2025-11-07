@@ -1,13 +1,16 @@
 import pytest
 import pandas as pd
 import os
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 
 # If the processed file exists, otherwise create a small dataframe.
 @pytest.fixture(scope="session")
 def df_customers():
     path = os.path.join("data", "processed_features.parquet")
     if os.path.exists(path):
-        df = pd.read_parquet(path)
+        df = pd.read_parquet(path, engine="pyarrow")
         return df.head(200)  # A small sample is sufficient for tests
     # fallback: Creating a sample dataframe
     df = pd.DataFrame({
