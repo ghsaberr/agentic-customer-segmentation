@@ -8,6 +8,7 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 import umap
+from IPython.display import display
 
 def run_clustering_pipeline(input_path="data/processed_features.parquet", output_path="data/clustered_customers.parquet"):
     df_feat = pd.read_parquet(input_path)

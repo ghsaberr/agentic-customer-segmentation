@@ -1,3 +1,7 @@
+from sentence_transformers import SentenceTransformer
+import pandas as pd
+import os
+
 def safe_load_corpus(path):
     """
     Loads a corpus DataFrame from a Parquet file, checking for existence first.
