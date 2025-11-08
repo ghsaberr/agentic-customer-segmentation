@@ -1,5 +1,10 @@
+from dotenv import load_dotenv
+load_dotenv()  # this reads .env into os.environ
+
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from src.security import verify_admin
+
 from sentence_transformers import SentenceTransformer
-from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -192,9 +197,10 @@ def _rebuild_index_sync():
 
 
 @app.post("/rebuild_index")
-async def rebuild_index(background_tasks: BackgroundTasks):
+async def rebuild_index(background_tasks: BackgroundTasks, authorized: bool = Depends(verify_admin)):
     """
     Trigger background rebuild of FAISS index.
+    authorized == True
     """
     if INDEX_STATE["status"] == "building":
         return {"status": "busy", "message": "Index rebuild already in progress."}
