@@ -6,19 +6,15 @@ from typing import Optional
 import pandas as pd
 import os
 import asyncio
-
+import faiss
+import numpy as np
+import json
 
 from src.cluster_pipeline import run_clustering_pipeline
 from src.agent import agent_for_cluster
 from src.retrieval import build_or_load_faiss_index, safe_load_corpus
 from src.cluster_profiler import cluster_profiler
 from src.llm import load_llm
-from src.llm_utils import call_llama
-
-
-import faiss
-import numpy as np
-from sentence_transformers import SentenceTransformer
 
 
 app = FastAPI(
@@ -27,11 +23,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ---- Load global resources ----
+# ---- Global constants ----
 DATA_PATH = "data/clustered_customers.parquet"
 CORPUS_PATH = "data/corpus_passages.parquet"
 EMB_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+FAISS_INDEX_PATH = "data/faiss_index.bin"
+EMB_PATH = "data/doc_embeddings.npy"
+META_PATH = "data/doc_metadata.json"
+
+# ---- Globals ----
 index, embeddings, meta = None, None, None
 df_clustered = None
 numeric_cols = []
@@ -99,8 +100,8 @@ def run_agent(request: AgentRequest):
     try:
         df = load_clustered_df()
         global index, embeddings, meta
-        if index is None:
-            raise HTTPException(status_code=400, detail="Vector index not loaded. Run /rebuild_index first.")
+        if index is None or embeddings is None or meta is None:
+            raise HTTPException(status_code=400, detail="Vector index not loaded. Ensure FAISS files are present or rebuild the index.")
         result = agent_for_cluster(
             cluster_id=request.cluster_id,
             df_clustered=df,
@@ -116,18 +117,38 @@ def run_agent(request: AgentRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
+# ---- Startup loader ----
 @app.on_event("startup")
 def startup_event():
     """
-    Loads LLM at startup to avoid reloading per request.
+    Load LLM and FAISS index at startup (if available).
     """
-    global llm
+    global llm, index, embeddings, meta
+
+    # Load LLM
     try:
         llm = load_llm()
         print("✅ LLM loaded successfully.")
     except Exception as e:
         print(f"⚠️ Failed to load LLM: {e}")
+
+    # Load FAISS index + embeddings + metadata
+    try:
+        if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(EMB_PATH) and os.path.exists(META_PATH):
+            index = faiss.read_index(FAISS_INDEX_PATH)
+            embeddings = np.load(EMB_PATH)
+            with open(META_PATH, "r", encoding="utf-8-sig") as f:
+                meta = json.load(f)
+
+            print(f"✅ FAISS index loaded successfully: {len(meta)} documents, dim={embeddings.shape[1]}")
+        else:
+            print("⚠️ FAISS index or embedding files not found. Run /rebuild_index if needed.")
+    except Exception as e:
+        print(f"❌ Error loading FAISS index: {e}")
+
+
+
+# ---- Index rebuild endpoints ----
 
 INDEX_STATE = {
     "status": "idle",
@@ -139,23 +160,25 @@ INDEX_STATE = {
 
 @app.get("/index_status")
 async def index_status():
-
     return INDEX_STATE
 
 
 def _rebuild_index_sync():
+    """
+    Rebuild the FAISS index and save it to disk.
+    """
+    global index, embeddings, meta
 
     try:
         INDEX_STATE["status"] = "building"
         INDEX_STATE["error"] = None
 
-        corpus_df = safe_load_corpus("data/corpus_passages.parquet")
+        corpus_df = safe_load_corpus(CORPUS_PATH)
+        index, embeddings, meta = build_or_load_faiss_index(corpus_df, EMB_MODEL_NAME)
 
-        index, embeddings, meta = build_or_load_faiss_index(corpus_df, "all-MiniLM-L6-v2")
-
-        faiss.write_index(index, "data/faiss_index.bin")
-        np.save("data/embeddings.npy", embeddings)
-        pd.DataFrame(meta).to_json("data/faiss_meta.json", orient="records")
+        faiss.write_index(index, FAISS_INDEX_PATH)
+        np.save(EMB_PATH, embeddings)
+        pd.DataFrame(meta).to_json(META_PATH, orient="records")
 
         INDEX_STATE["status"] = "ready"
         INDEX_STATE["records"] = len(corpus_df)
@@ -170,7 +193,9 @@ def _rebuild_index_sync():
 
 @app.post("/rebuild_index")
 async def rebuild_index(background_tasks: BackgroundTasks):
-
+    """
+    Trigger background rebuild of FAISS index.
+    """
     if INDEX_STATE["status"] == "building":
         return {"status": "busy", "message": "Index rebuild already in progress."}
 

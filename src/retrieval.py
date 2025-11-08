@@ -1,5 +1,7 @@
 from sentence_transformers import SentenceTransformer
 import pandas as pd
+import numpy as np
+import faiss
 import os
 
 def safe_load_corpus(path):
