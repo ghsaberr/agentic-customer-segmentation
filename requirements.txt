@@ -8,4 +8,7 @@ seaborn
 umap-learn
 faiss-cpu
 sentence-transformers
+python-dotenv
+mlflow
 llama-cpp-python
+IPython

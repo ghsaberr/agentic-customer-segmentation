@@ -2,6 +2,8 @@ import json, numpy as np
 from src.cluster_profiler import cluster_profiler
 from src.rule_checker import rule_checker
 from src.llm_utils import call_llama
+import mlflow
+import os
 
 def agent_for_cluster(cluster_id, df_clustered, index, embeddings, meta, numeric_cols, llm, top_k=3):
     profile = cluster_profiler(cluster_id, df_clustered, numeric_cols)
@@ -43,4 +45,17 @@ Return a JSON with:
         "rule_violations": rules,
         "quality_flag": "ok" if not rules else "review_required"
     }
+
+    # --- Log Agent Run to MLflow ---
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+    mlflow.set_experiment("agent_insights")
+
+    with mlflow.start_run(run_name=f"agent_cluster_{cluster_id}"):
+        mlflow.log_param("cluster_id", cluster_id)
+        mlflow.log_param("prompt_version", "v1.0")
+        mlflow.log_param("top_k", top_k)
+        mlflow.log_metric("num_rule_violations", len(rules))
+        mlflow.log_text(prompt, "prompt_used.txt")
+        mlflow.log_text(json.dumps(parsed, indent=2), "agent_output.json")
+
     return result

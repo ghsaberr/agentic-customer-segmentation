@@ -21,6 +21,8 @@ from src.retrieval import build_or_load_faiss_index, safe_load_corpus
 from src.cluster_profiler import cluster_profiler
 from src.llm import load_llm
 
+import mlflow
+
 
 app = FastAPI(
     title="Customer Intelligence API",
@@ -129,6 +131,10 @@ def startup_event():
     Load LLM and FAISS index at startup (if available).
     """
     global llm, index, embeddings, meta
+
+    MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+    mlflow.set_tracking_uri(MLFLOW_URI)
+    print(f"MLflow tracking URI: {mlflow.get_tracking_uri()}")
 
     # Load LLM
     try:
