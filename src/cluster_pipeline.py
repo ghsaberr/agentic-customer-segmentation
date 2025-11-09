@@ -64,7 +64,7 @@ def run_clustering_pipeline(
     print("Silhouette (GMM):", sil_gmm)
 
     # --- Log to MLflow ---
-    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
     mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT_NAME", "customer_segmentation"))
 
     with mlflow.start_run(run_name=f"kmeans_k{best_k}"):

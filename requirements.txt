@@ -12,3 +12,5 @@ python-dotenv
 mlflow
 llama-cpp-python
 IPython
+streamlit
+plotly

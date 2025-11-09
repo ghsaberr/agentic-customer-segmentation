@@ -33,6 +33,15 @@ Built with **FastAPI**, **MLflow**, and **Docker** — ready for deployment and 
 docker compose up --build
 ```
 
+This will start:
+
+- **segmentation_api** → FastAPI app on http://localhost:8000
+
+- **mlflow** → MLflow tracking UI on http://localhost:5000
+
+Both services share a Docker network (segmentation_net) to allow internal communication at http://mlflow:5000.
+
+
 ## Local
 ### 1. Create a virtual environment
 
